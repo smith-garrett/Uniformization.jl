@@ -33,30 +33,46 @@ function off_diag_nonnegative(Q)
     return true
 end
 
-struct TransitionRateMatrix{E, T <: AbstractMatrix} <: AbstractMatrix{E}
+#struct TransitionRateMatrix{E, T <: AbstractMatrix} <: AbstractMatrix{E}
+#    matrix::T
+#    #max_rate::E
+#    function TransitionRateMatrix(Q::T) where {E, T <: AbstractMatrix{E}}
+#        if !(is_square(Q))
+#            error("Matrix is not square")
+#        end
+#        if !(off_diag_nonnegative(Q))
+#            error("Matrix contains off-diagonal elements that aren't positive.")
+#        end
+#        newQ = set_diagonal!(copy(Q))
+#        new{E, T}(newQ, max_rate)
+#    end
+#end
+
+struct TransitionRateMatrix{E, T <: AbstractMatrix{E}} <: AbstractMatrix{E}
     matrix::T
-    function TransitionRateMatrix(Q::T) where {E, T <: AbstractMatrix{E}}
+    max_rate::E
+
+    function TransitionRateMatrix(Q)
         if !(is_square(Q))
-            error("Matrix is not square")
+            error("Matrix is not square.")
         end
         if !(off_diag_nonnegative(Q))
             error("Matrix contains off-diagonal elements that aren't positive.")
         end
+
         newQ = set_diagonal!(copy(Q))
-        new{E, T}(newQ)
+        max_rate = maximum(abs, diag(newQ))
+        new{eltype(newQ), typeof(newQ)}(newQ, max_rate)
     end
 end
-
-#TransitionRateMatrix(Q::TransitionRateMatrix) = TransitionRateMatrix(Q.matrix)
 
 Base.size(m::TransitionRateMatrix) = size(m.matrix)
 Base.getindex(m::TransitionRateMatrix, I...) = Base.getindex(m.matrix, I...)
 Base.IndexStyle(::Type{TransitionRateMatrix{E,T}}) where {E,T} = IndexStyle(T)
 
 function make_dtmc(Q::TransitionRateMatrix)
-    max_rate = maximum(abs.(diag(Q)))
     ndim = size(Q, 1)
-    return I(ndim) + Q ./ max_rate
+    return I(ndim) + Q ./ Q.max_rate
 end
 
 function stationary_distribution(Q::TransitionRateMatrix)
@@ -68,19 +84,55 @@ function stationary_distribution(Q::TransitionRateMatrix)
     return eigvecs[:,idx] ./ sum(eigvecs[:,idx])
 end
 
-function solve(Q::TransitionRateMatrix, p0, t)
-    max_rate = maximum(abs.(diag(Q)))
+#function solve(Q::TransitionRateMatrix, p0, t)
+#    max_rate = maximum(abs.(diag(Q)))
+#    P = make_dtmc(Q)
+#    #probs = zeros(length(p0))
+#    sm = zeros(size(Q))
+#    for i = 0:25
+#        #probs .+= exp(-max_rate * t) * (max_rate * t)^i / factorial(i) .* (P^i * p0) 
+#        #probs ./= sum(probs)
+#        #sm .+= exp(-max_rate * t) * (max_rate * t)^i / factorial(i) .* P^i
+#        sm .+= pdf(Poisson(max_rate * t), i) .* P^i
+#    end
+#    #return probs
+#    return sm * p0
+#end
+
+
+"""
+    solve(Q, p0, t)
+
+Solve for exp(Qt) * p0 using the method P₄ from Yoon & Shanthikumar (1989).
+"""
+
+function solve(Q::TransitionRateMatrix, p0, t, λ)
     P = make_dtmc(Q)
-    #probs = zeros(length(p0))
-    sm = zeros(size(Q))
-    for i = 0:25
-        #probs .+= exp(-max_rate * t) * (max_rate * t)^i / factorial(i) .* (P^i * p0) 
-        #probs ./= sum(probs)
-        #sm .+= exp(-max_rate * t) * (max_rate * t)^i / factorial(i) .* P^i
-        sm .+= pdf(Poisson(max_rate * t), i) .* P^i
-    end
-    #return probs
-    return sm * p0
+    return P^(floor(t * λ)) * p0
 end
+
+function solve(Q::TransitionRateMatrix, p0, t)
+    solve(Q, p0, t, Q.max_rate)
+end
+#function get_delta(max_rate, ϵ=1e-12)
+#    return -max_rate^-1 * log(1 - ϵ)
+#end
+
+#kronecker(n1, n2) = n1 == n2
+
+#function make_P2(Q::TransitionRateMatrix, Δ)
+#    P = zeros(size(Q))
+#    diags = abs.(diag(Q))
+#    for idx in CartesianIndices(Q)
+#        P[idx] = (1 - exp(-diags[idx[1]] * Δ)) * (Q[idx] / diags[idx[1]]) + exp(-diags[idx[1]] * Δ) * kronecker(idx[1], idx[2])
+#    end
+#    return P
+#end
+
+#function make_P3(Q::TransitionRateMatrix)
+#    max_rate = maximum(abs.(diag(Q)))
+#    P3 = inv(I(size(Q, 1)) - Q ./ max_rate)
+#end
+
 
 
