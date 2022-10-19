@@ -2,20 +2,20 @@
 # Borrows heavily from tpapp/ContinuousTimeMarkov
 
 
-function is_square(Q)
+function issquare(Q)
     s1, s2 = size(Q)
     s1 == s2 ? true : false
 end
 
-function get_diagonal(Q)
+function getdiagonal(Q)
     return sum(Q, dims=1)
 end
 
-function set_diagonal!(Q)
+function setdiagonal!(Q)
     for i in 1:size(Q, 1)
         @inbounds Q[i,i] = zero(eltype(Q))
     end
-    d = get_diagonal(Q)
+    d = getdiagonal(Q)
     for i in eachindex(d)
         @inbounds Q[i,i] = -d[i]
     end
@@ -33,34 +33,19 @@ function off_diag_nonnegative(Q)
     return true
 end
 
-#struct TransitionRateMatrix{E, T <: AbstractMatrix} <: AbstractMatrix{E}
-#    matrix::T
-#    #max_rate::E
-#    function TransitionRateMatrix(Q::T) where {E, T <: AbstractMatrix{E}}
-#        if !(is_square(Q))
-#            error("Matrix is not square")
-#        end
-#        if !(off_diag_nonnegative(Q))
-#            error("Matrix contains off-diagonal elements that aren't positive.")
-#        end
-#        newQ = set_diagonal!(copy(Q))
-#        new{E, T}(newQ, max_rate)
-#    end
-#end
-
 struct TransitionRateMatrix{E, T <: AbstractMatrix{E}} <: AbstractMatrix{E}
     matrix::T
     max_rate::E
 
     function TransitionRateMatrix(Q)
-        if !(is_square(Q))
+        if !(issquare(Q))
             error("Matrix is not square.")
         end
         if !(off_diag_nonnegative(Q))
             error("Matrix contains off-diagonal elements that aren't positive.")
         end
 
-        newQ = set_diagonal!(copy(Q))
+        newQ = setdiagonal!(copy(Q))
         max_rate = maximum(abs, diag(newQ))
         new{eltype(newQ), typeof(newQ)}(newQ, max_rate)
     end
@@ -76,12 +61,14 @@ function make_dtmc(Q::TransitionRateMatrix)
 end
 
 function stationary_distribution(Q::TransitionRateMatrix)
-    eigvals, eigvecs = eigen(Q)
-    idx = findall(x -> iszero.(x), eigvals)
-    if length(idx) != 1
-        error("More than one stationary state found.")
-    end
-    return eigvecs[:,idx] ./ sum(eigvecs[:,idx])
+#    eigvals, eigvecs = eigen(Q.matrix)
+#    idx = findall(x -> iszero.(x), eigvals)
+#    if length(idx) != 1
+#        error("More than one stationary state found.")
+#    end
+#    return eigvecs[:,idx] ./ sum(eigvecs[:,idx])
+    soln = nullspace(Q.matrix)
+    return soln ./ sum(soln)
 end
 
 #function solve(Q::TransitionRateMatrix, p0, t)
@@ -114,6 +101,7 @@ end
 function solve(Q::TransitionRateMatrix, p0, t)
     solve(Q, p0, t, Q.max_rate)
 end
+
 #function get_delta(max_rate, ϵ=1e-12)
 #    return -max_rate^-1 * log(1 - ϵ)
 #end
