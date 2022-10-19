@@ -55,9 +55,9 @@ Base.size(m::TransitionRateMatrix) = size(m.matrix)
 Base.getindex(m::TransitionRateMatrix, I...) = Base.getindex(m.matrix, I...)
 Base.IndexStyle(::Type{TransitionRateMatrix{E,T}}) where {E,T} = IndexStyle(T)
 
-function make_dtmc(Q::TransitionRateMatrix)
+function make_dtmc(Q::TransitionRateMatrix, λ=Q.max_rate)
     ndim = size(Q, 1)
-    return I(ndim) + Q ./ Q.max_rate
+    return I(ndim) + Q ./ λ
 end
 
 function stationary_distribution(Q::TransitionRateMatrix)
@@ -92,15 +92,48 @@ end
 
 Solve for exp(Qt) * p0 using the method P₄ from Yoon & Shanthikumar (1989).
 """
-
-function solve(Q::TransitionRateMatrix, p0, t, λ)
-    P = make_dtmc(Q)
-    return P^(floor(t * λ)) * p0
+#function solve(Q::TransitionRateMatrix, p0, t, λ=Q.max_rate)
+#function solve(Q::TransitionRateMatrix, p0, t, k=2^8)
+function solve(Q::TransitionRateMatrix, p0, t, λ=Q.max_rate, ϵ=10e-9)
+    @assert t ≥ zero(t) "Time t must be positive."
+    @assert size(p0, 1) == size(Q, 1) "Initial condition p0 must be the same size as Q."
+    P = make_dtmc(Q, λ)
+    sm = zeros(size(Q))
+    δ = 1.0
+    k = 0
+    # Automatically determine the upper bound for the approximation
+    while δ ≥ ϵ
+        pr = pdf(Poisson(Q.max_rate * t), k)
+        #sm .+= pr .* P^k
+        if k == 0
+            sm .+= pr .* I(size(Q, 1))
+        elseif k ==1
+            sm .+= pr .* P
+        else
+            P *= P
+            sm .+= pr .* P
+        end
+        δ -= pr
+        k += 1
+    end
+    #res = sm * p0
+    return sm * p0  #res ./ sum(res)
 end
 
-function solve(Q::TransitionRateMatrix, p0, t)
-    solve(Q, p0, t, Q.max_rate)
+# Doesn't seem to work well
+function P4(Q::TransitionRateMatrix, p0, t, λ=Q.max_rate)
+    P = make_dtmc(Q, λ)
+    return P^floor(λ * t) * p0
 end
+
+function P3(Q::TransitionRateMatrix, p0, t, λ=Q.max_rate)
+    P = inv(I(size(Q, 1)) - Q ./ λ)
+    return P^floor(λ * t) * p0
+end
+
+#function solve(Q::TransitionRateMatrix, p0, t)
+#    solve(Q, p0, t, Q.max_rate)
+#end
 
 #function get_delta(max_rate, ϵ=1e-12)
 #    return -max_rate^-1 * log(1 - ϵ)
