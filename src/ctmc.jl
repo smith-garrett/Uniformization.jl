@@ -90,54 +90,69 @@ end
 """
     solve(Q, p0, t)
 
-Solve for exp(Qt) * p0 using the method P₄ from Yoon & Shanthikumar (1989).
+Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using uniformization. The parameter λ controls the rate of
+transitions occurring in the approximated process. Higher λ leads to a better approximation.
 """
-#function solve(Q::TransitionRateMatrix, p0, t, λ=Q.max_rate)
-#function solve(Q::TransitionRateMatrix, p0, t, k=2^8)
-function solve(Q::TransitionRateMatrix, p0, t, λ=Q.max_rate, ϵ=10e-9)
+function uniformize(Q::TransitionRateMatrix, method::Function, p0, t, λ=Q.max_rate, args...)
     @assert t ≥ zero(t) "Time t must be positive."
     @assert size(p0, 1) == size(Q, 1) "Initial condition p0 must be the same size as Q."
+    method(Q, p0, t, λ, args...)
+end
+
+"""
+    standard_uniformization(Q::TransitionRateMatrix, p0, t, λ=Q.max_rate)
+
+Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using standard uniformization. The upper bound of the
+truncation is determined automatically on the fly. Matrix powers are calculated
+incrementally. Still much less efficient than discrete_observation_times and erlangization.
+"""
+function standard_uniformization(Q::TransitionRateMatrix, p0, t, λ=Q.max_rate, ϵ=10e-9)
     P = make_dtmc(Q, λ)
+    Ppower = deepcopy(P)
     sm = zeros(size(Q))
-    δ = 1.0
+    δ = 0.0
     k = 0
     # Automatically determine the upper bound for the approximation
-    while δ ≥ ϵ
-        pr = pdf(Poisson(Q.max_rate * t), k)
+    while (1 - δ) ≥ ϵ
+        pr = pdf(Poisson(λ * t), k)
         #sm .+= pr .* P^k
         if k == 0
             sm .+= pr .* I(size(Q, 1))
         elseif k ==1
             sm .+= pr .* P
         else
-            P *= P
-            sm .+= pr .* P
+            Ppower *= P
+            sm .+= pr .* Ppower
         end
-        δ -= pr
         k += 1
+        δ += pr
     end
     #res = sm * p0
     return sm * p0  #res ./ sum(res)
 end
 
-# Doesn't seem to work well
-function P4(Q::TransitionRateMatrix, p0, t, λ=Q.max_rate)
+"""
+    discrete_observation_times(Q::TransitionRateMatrix, p0, t, λ=Q.max_rate)
+
+Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using P₄ of Yoon & Shanthikumar (1989, p. 181). The default λ
+is usually much too small for a good approximation. Powers of two seem to work well.
+
+"""
+function discrete_observation_times(Q::TransitionRateMatrix, p0, t, λ=Q.max_rate, args...)
     P = make_dtmc(Q, λ)
     return P^floor(λ * t) * p0
 end
 
-function P3(Q::TransitionRateMatrix, p0, t, λ=Q.max_rate)
+"""
+    erlangization(Q::TransitionRateMatrix, p0, t, λ=Q.max_rate)
+
+Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using P₃ of Yoon & Shanthikumar (1989, p. 179), originally
+from Ross (1987).
+"""
+function erlangization(Q::TransitionRateMatrix, p0, t, λ=Q.max_rate, args...)
     P = inv(I(size(Q, 1)) - Q ./ λ)
     return P^floor(λ * t) * p0
 end
-
-#function solve(Q::TransitionRateMatrix, p0, t)
-#    solve(Q, p0, t, Q.max_rate)
-#end
-
-#function get_delta(max_rate, ϵ=1e-12)
-#    return -max_rate^-1 * log(1 - ϵ)
-#end
 
 #kronecker(n1, n2) = n1 == n2
 
@@ -150,10 +165,9 @@ end
 #    return P
 #end
 
-#function make_P3(Q::TransitionRateMatrix)
-#    max_rate = maximum(abs.(diag(Q)))
-#    P3 = inv(I(size(Q, 1)) - Q ./ max_rate)
-#end
-
+# To do:
+# - Implement a version of the uniformization fn. as a subtype of discrete multivariate distribution
+# - Make iterative solver for whole trajectory, using the previous solution point as the
+# initial condition for the next.
 
 
