@@ -61,32 +61,9 @@ function make_dtmc(Q::TransitionRateMatrix, λ=Q.max_rate)
 end
 
 function stationary_distribution(Q::TransitionRateMatrix)
-#    eigvals, eigvecs = eigen(Q.matrix)
-#    idx = findall(x -> iszero.(x), eigvals)
-#    if length(idx) != 1
-#        error("More than one stationary state found.")
-#    end
-#    return eigvecs[:,idx] ./ sum(eigvecs[:,idx])
     soln = nullspace(Q.matrix)
     return soln ./ sum(soln)
 end
-
-#function solve(Q::TransitionRateMatrix, p0, t)
-#    max_rate = maximum(abs.(diag(Q)))
-#    P = make_dtmc(Q)
-#    #probs = zeros(length(p0))
-#    sm = zeros(size(Q))
-#    for i = 0:25
-#        #probs .+= exp(-max_rate * t) * (max_rate * t)^i / factorial(i) .* (P^i * p0) 
-#        #probs ./= sum(probs)
-#        #sm .+= exp(-max_rate * t) * (max_rate * t)^i / factorial(i) .* P^i
-#        sm .+= pdf(Poisson(max_rate * t), i) .* P^i
-#    end
-#    #return probs
-#    return sm * p0
-#end
-
-
 """
     solve(Q, p0, t)
 
