@@ -64,26 +64,32 @@ function stationary_distribution(Q::TransitionRateMatrix)
     soln = nullspace(Q.matrix)
     return soln ./ sum(soln)
 end
+
 """
-    solve(Q, p0, t)
+    uniformize(Q::TransitionRateMatrix, p0, λ=2e10, t=0.0,
+               method::Function=discrete_observation_times, args...)
 
 Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using uniformization. The parameter λ controls the rate of
 transitions occurring in the approximated process. Higher λ leads to a better approximation.
+Returns a (normalized) Distributions.Categorical distribution over the states at time 𝑡.
 """
-function uniformize(Q::TransitionRateMatrix, method::Function, p0, t, λ=Q.max_rate, args...)
+function uniformize(Q::TransitionRateMatrix, p0, λ=2e10, t=0.0,
+                    method::Function=discrete_observation_times, args...)
     @assert t ≥ zero(t) "Time t must be positive."
     @assert size(p0, 1) == size(Q, 1) "Initial condition p0 must be the same size as Q."
-    method(Q, t, λ, args...) * p0
+    res = method(Q, λ, t, args...) * p0
+    Categorical(res ./ sum(res))
 end
 
 """
-    standard_uniformization(Q::TransitionRateMatrix, p0, t, λ=Q.max_rate)
+    standard_uniformization(Q::TransitionRateMatrix, λ=2e10, t=0.0)
 
-Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using standard uniformization. The upper bound of the
-truncation is determined automatically on the fly. Matrix powers are calculated
-incrementally. Still much less efficient than discrete_observation_times and erlangization.
+Approximate 𝐑(t) = exp(t𝐐) using standard uniformization, where the Rᵢⱼ are the probability
+of starting at state 𝑗 and ending at state 𝑖 at time 𝑡. The upper bound of the truncation is
+determined automatically on the fly. Matrix powers are calculated incrementally. Still much
+less efficient than discrete_observation_times and erlangization.
 """
-function standard_uniformization(Q::TransitionRateMatrix, t, λ=Q.max_rate, ϵ=10e-9)
+function standard_uniformization(Q::TransitionRateMatrix, λ=2e10, t=0.0, ϵ=10e-9)
     P = make_dtmc(Q, λ)
     Ppower = deepcopy(P)
     sm = zeros(size(Q))
@@ -107,24 +113,26 @@ function standard_uniformization(Q::TransitionRateMatrix, t, λ=Q.max_rate, ϵ=1
 end
 
 """
-    discrete_observation_times(Q::TransitionRateMatrix, p0, t, λ=Q.max_rate)
+    discrete_observation_times(Q::TransitionRateMatrix, λ=2e10, t=0.0)
 
-Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using P₄ of Yoon & Shanthikumar (1989, p. 181). The default λ
-is usually much too small for a good approximation. Powers of two seem to work well.
+Approximate 𝐑(t) = exp(t𝐐) using P₄ of Yoon & Shanthikumar (1989, p. 181), where the Rᵢⱼ are
+the probability of starting at state 𝑗 and ending at state 𝑖 at time 𝑡. The default λ is
+usually much too small for a good approximation. Powers of two seem to work well.
 
 """
-function discrete_observation_times(Q::TransitionRateMatrix, t, λ=Q.max_rate, args...)
+function discrete_observation_times(Q::TransitionRateMatrix, λ=2e10, t=0.0, args...)
     P = make_dtmc(Q, λ)
     return P^floor(Int, λ * t)
 end
 
 """
-    erlangization(Q::TransitionRateMatrix, p0, t, λ=Q.max_rate)
+    erlangization(Q::TransitionRateMatrix, λ=2e10, t=0.0)
 
-Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using P₃ of Yoon & Shanthikumar (1989, p. 179), originally
-from Ross (1987).
+Approximate 𝐑(t) = exp(t𝐐) using P₃ of Yoon & Shanthikumar (1989, p. 179), originally from
+Ross (1987), where the Rᵢⱼ are the probability of starting at state 𝑗 and ending at state 𝑖
+at time 𝑡.
 """
-function erlangization(Q::TransitionRateMatrix, t, λ=Q.max_rate, args...)
+function erlangization(Q::TransitionRateMatrix, λ=2e10, t=0.0, args...)
     P = inv(I(size(Q, 1)) - Q ./ λ)
     return P^floor(Int, λ * t)
 end
@@ -141,7 +149,8 @@ end
 #end
 
 # To do:
-# - Implement a version of the uniformization fn. as a subtype of discrete multivariate distribution
+# - Implement a version of the uniformization fn. as a subtype of discrete multivariate
+# distribution
 # - Make iterative solver for whole trajectory, using the previous solution point as the
 # initial condition for the next.
 
