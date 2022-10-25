@@ -57,6 +57,14 @@ struct FullRateMatrix{E, T <: AbstractMatrix{E}} <: AbstractRateMatrix{E}
     end
 end
 
+function transient_diag_correct(Q)
+    QQ = deepcopy(Q)
+    for i in 1:size(QQ, 1)
+        @inbounds QQ[i,i] = zero(eltype(QQ))
+    end
+    all(abs.(diag(Q)) .>= sum(QQ, dims=1))
+end
+
 # Transient rate matrix
 struct TransientRateMatrix{E, T <: AbstractMatrix{E}} <: AbstractRateMatrix{E}
     matrix::T
@@ -68,10 +76,17 @@ struct TransientRateMatrix{E, T <: AbstractMatrix{E}} <: AbstractRateMatrix{E}
         if !(off_diag_nonnegative(Q))
             error("Matrix contains off-diagonal elements that aren't positive.")
         end
+        if !all(diag(Q) .< zero(eltype(Q)))
+            error("Diagonal can only contain negative entries.")
+        end
+        if !transient_diag_correct(Q)
+            error("Diagonal elements must be greater than or equal to the column sums.")
+        end
 
         new{eltype(Q), typeof(Q)}(Q)
     end
 end
+
 Base.size(m::AbstractRateMatrix) = size(m.matrix)
 Base.getindex(m::AbstractRateMatrix, I...) = Base.getindex(m.matrix, I...)
 #Base.IndexStyle(::Type{AbstractRateMatrix{E}}) where {E,T} = IndexStyle(T)
