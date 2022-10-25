@@ -34,17 +34,17 @@ function off_diag_nonnegative(Q)
 end
 
 # Define an abstract type for all transition rate matrices
-abstract struct AbstractRateMatrix{E} <: AbstractMatrix{E} end
+abstract type AbstractRateMatrix{E} <: AbstractMatrix{E} end
 
 function getmaxrate(Q)
     maximum(abs, diag(q))
 end
 
 # Full transition rate matrix; columns must sum to 0
-struct TransitionRateMatrix{E, T <: AbstractMatrix{E}} <: AbstractRateMatrix{E}
+struct FullRateMatrix{E, T <: AbstractMatrix{E}} <: AbstractRateMatrix{E}
     matrix::T
 
-    function TransitionRateMatrix(Q)
+    function FullRateMatrix(Q)
         if !(issquare(Q))
             error("Matrix is not square.")
         end
@@ -53,7 +53,7 @@ struct TransitionRateMatrix{E, T <: AbstractMatrix{E}} <: AbstractRateMatrix{E}
         end
 
         newQ = setdiagonal!(copy(Q))
-        new{eltype(newQ), typeof(newQ)}(newQ, max_rate)
+        new{eltype(newQ), typeof(newQ)}(newQ)
     end
 end
 
@@ -61,7 +61,7 @@ end
 struct TransientRateMatrix{E, T <: AbstractMatrix{E}} <: AbstractRateMatrix{E}
     matrix::T
 
-    function TransitionRateMatrix(Q)
+    function TransientRateMatrix(Q)
         if !(issquare(Q))
             error("Matrix is not square.")
         end
@@ -74,7 +74,7 @@ struct TransientRateMatrix{E, T <: AbstractMatrix{E}} <: AbstractRateMatrix{E}
 end
 Base.size(m::AbstractRateMatrix) = size(m.matrix)
 Base.getindex(m::AbstractRateMatrix, I...) = Base.getindex(m.matrix, I...)
-Base.IndexStyle(::Type{AbstractRateMatrix{E,T}}) where {E,T} = IndexStyle(T)
+#Base.IndexStyle(::Type{AbstractRateMatrix{E}}) where {E,T} = IndexStyle(T)
 
 function make_dtmc(Q, λ=2^10)
     ndim = size(Q, 1)
@@ -87,29 +87,44 @@ function stationary_distribution(Q)
 end
 
 """
-    uniformize(Q, p0, λ=2^10, t=0.0, method::Function=discrete_observation_times, args...)
+    uniformize(Q::FullRateMatrix, p0, λ=2^10, t=0.0,
+               method::Function=discrete_observation_times, args...)
 
 Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using uniformization. The parameter λ controls the rate of
 transitions occurring in the approximated process. Higher λ leads to a better approximation.
-Returns a (normalized) Distributions.Categorical distribution over the states at time 𝑡.
+Returns a (normalized) distribution over the states at time 𝑡.
 """
-function uniformize(Q, p0, λ=2^10, t=0.0,
+function uniformize(Q::FullRateMatrix, p0, λ=2^10, t=0.0,
                     method::Function=discrete_observation_times, args...)
     @assert t ≥ zero(t) "Time t must be positive."
     @assert size(p0, 1) == size(Q, 1) "Initial condition p0 must be the same size as Q."
     res = method(Q, λ, t, args...) * p0
-    Categorical(res ./ sum(res))
+    res ./ sum(res)
 end
 
 """
-    standard_uniformization(Q::TransitionRateMatrix, λ=2^10, t=0.0)
+    uniformize(Q::TransientRateMatrix, p0, λ=2^10, t=0.0,
+               method::Function=discrete_observation_times, args...)
+
+Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using uniformization. The parameter λ controls the rate of
+transitions occurring in the approximated process. Higher λ leads to a better approximation.
+Returns a non-normalized distribution over the states at time 𝑡.
+"""
+function uniformize(Q::TransientRateMatrix, p0, λ=2^10, t=0.0,
+                    method::Function=discrete_observation_times, args...)
+    @assert t ≥ zero(t) "Time t must be positive."
+    @assert size(p0, 1) == size(Q, 1) "Initial condition p0 must be the same size as Q."
+    method(Q, λ, t, args...) * p0
+end
+"""
+    standard_uniformization(Q, λ=2^10, t=0.0)
 
 Approximate 𝐑(t) = exp(t𝐐) using standard uniformization, where the Rᵢⱼ are the probability
 of starting at state 𝑗 and ending at state 𝑖 at time 𝑡. The upper bound of the truncation is
 determined automatically on the fly. Matrix powers are calculated incrementally. Still much
 less efficient than discrete_observation_times and erlangization.
 """
-function standard_uniformization(Q λ=2^10, t=0.0, ϵ=10e-9)
+function standard_uniformization(Q, λ=2^10, t=0.0, ϵ=10e-9)
     P = make_dtmc(Q, λ)
     Ppower = deepcopy(P)
     sm = zeros(size(Q))
@@ -133,26 +148,26 @@ function standard_uniformization(Q λ=2^10, t=0.0, ϵ=10e-9)
 end
 
 """
-    discrete_observation_times(Q::TransitionRateMatrix, λ=2^10, t=0.0)
+    discrete_observation_times(Q, λ=2^10, t=0.0)
 
 Approximate 𝐑(t) = exp(t𝐐) using P₄ of Yoon & Shanthikumar (1989, p. 181), where the Rᵢⱼ are
 the probability of starting at state 𝑗 and ending at state 𝑖 at time 𝑡. The default λ is
 usually much too small for a good approximation. Powers of two seem to work well.
 
 """
-function discrete_observation_times(Q::TransitionRateMatrix, λ=2^10, t=0.0, args...)
+function discrete_observation_times(Q, λ=2^10, t=0.0, args...)
     P = make_dtmc(Q, λ)
     return P^floor(Int, λ * t)
 end
 
 """
-    erlangization(Q::TransitionRateMatrix, λ=2^10, t=0.0)
+    erlangization(Q, λ=2^10, t=0.0)
 
 Approximate 𝐑(t) = exp(t𝐐) using P₃ of Yoon & Shanthikumar (1989, p. 179), originally from
 Ross (1987), where the Rᵢⱼ are the probability of starting at state 𝑗 and ending at state 𝑖
 at time 𝑡.
 """
-function erlangization(Q::TransitionRateMatrix, λ=2^10, t=0.0, args...)
+function erlangization(Q, λ=2^10, t=0.0, args...)
     P = inv(I(size(Q, 1)) - Q ./ λ)
     return P^floor(Int, λ * t)
 end
@@ -169,8 +184,6 @@ end
 #end
 
 # To do:
-# - Implement a version of the uniformization fn. as a subtype of discrete multivariate
-# distribution
 # - Make iterative solver for whole trajectory, using the previous solution point as the
 # initial condition for the next.
 
