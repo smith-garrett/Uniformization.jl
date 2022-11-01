@@ -69,7 +69,7 @@ function transient_diag_correct(Q)
     for i in 1:size(QQ, 1)
         @inbounds QQ[i,i] = zero(eltype(QQ))
     end
-    all(abs.(diag(Q)) .>= sum(QQ, dims=1))
+    all(abs.(diag(Q)) .>= vec(sum(QQ, dims=1)))
 end
 
 
