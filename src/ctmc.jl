@@ -42,7 +42,7 @@ abstract type AbstractRateMatrix{E} <: AbstractMatrix{E} end
 
 
 function getmaxrate(Q)
-    maximum(abs, diag(q))
+    maximum(abs, diag(Q))
 end
 
 
@@ -133,64 +133,65 @@ stationary_distribution(Q::TransientRateMatrix) = zeros(eltype(Q), size(Q, 1))
 
 
 """
-    uniformize(Q::FullRateMatrix, p0, λ=2^10, t=0.0,
+    uniformize(Q::FullRateMatrix, p0, k=2^10, t=0.0,
                method::Function=discrete_observation_times, args...)
 
-Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using uniformization. The parameter λ controls the rate of
-transitions occurring in the approximated process. Higher λ leads to a better approximation.
+Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using uniformization. The parameter k controls the rate of
+transitions occurring in the approximated process. Higher k leads to a better approximation.
 Returns a (normalized) distribution over the states at time 𝑡.
 """
-function uniformize(Q::FullRateMatrix, p0, λ=2^10, t=0.0,
+function uniformize(Q::FullRateMatrix, p0, k=2^10, t=0.0,
                     method::Function=discrete_observation_times, args...)
     @assert t ≥ zero(t) "Time t must be positive."
     @assert size(p0, 1) == size(Q, 1) "Initial condition p0 must be the same size as Q."
-    res = method(Q, λ, t, args...) * p0
+    res = method(Q, k, t, args...) * p0
     res ./ sum(res)
 end
 
 
 """
-    uniformize(Q::TransientRateMatrix, p0, λ=2^10, t=0.0,
+    uniformize(Q::TransientRateMatrix, p0, k=2^10, t=0.0,
                method::Function=discrete_observation_times, args...)
 
-Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using uniformization. The parameter λ controls the rate of
-transitions occurring in the approximated process. Higher λ leads to a better approximation.
+Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using uniformization. The parameter k controls the rate of
+transitions occurring in the approximated process. Higher k leads to a better approximation.
 Returns a non-normalized distribution over the states at time 𝑡.
 """
-function uniformize(Q::TransientRateMatrix, p0, λ=2^10, t=0.0,
+function uniformize(Q::TransientRateMatrix, p0, k=2^10, t=0.0,
                     method::Function=discrete_observation_times, args...)
     @assert t ≥ zero(t) "Time t must be positive."
     @assert size(p0, 1) == size(Q, 1) "Initial condition p0 must be the same size as Q."
-    method(Q, λ, t, args...) * p0
+    method(Q, k, t, args...) * p0
 end
 
 
 """
-    standard_uniformization(Q, λ=2^10, t=0.0)
+    standard_uniformization(Q, k=2^10, t=0.0)
 
 Approximate 𝐑(t) = exp(t𝐐) using standard uniformization, where the Rᵢⱼ are the probability
 of starting at state 𝑗 and ending at state 𝑖 at time 𝑡. The upper bound of the truncation is
 determined automatically on the fly. Matrix powers are calculated incrementally. Still much
 less efficient than discrete_observation_times and erlangization.
 """
-function standard_uniformization(Q, λ=2^10, t=0.0, ϵ=10e-9)
+function standard_uniformization(Q, k=2^10, t=0.0, ϵ=10e-9)
+    λ = k / t
     P = make_dtmc(Q, λ)
     Ppower = deepcopy(P)
     sm = zeros(size(Q))
     δ = 0.0
-    k = 0
+    n = 0
     # Automatically determine the upper bound for the approximation
     while (1 - δ) ≥ ϵ
-        pr = pdf(Poisson(λ * t), k)
-        if k == 0
+        pr = pdf(Poisson(λ * t), n)
+        if n == 0
             sm .+= pr .* I(size(Q, 1))
-        elseif k ==1
+        elseif n ==1
             sm .+= pr .* P
         else
             Ppower *= P
             sm .+= pr .* Ppower
         end
-        k += 1
+        n += 1
         δ += pr
     end
     return sm
@@ -198,28 +199,33 @@ end
 
 
 """
-    discrete_observation_times(Q, λ=2^10, t=0.0)
+    discrete_observation_times(Q, k=2^10, t=0.0)
 
 Approximate 𝐑(t) = exp(t𝐐) using P₄ of Yoon & Shanthikumar (1989, p. 181), where the Rᵢⱼ are
-the probability of starting at state 𝑗 and ending at state 𝑖 at time 𝑡. The default λ is
-usually much too small for a good approximation. Powers of two seem to work well.
+the probability of starting at state 𝑗 and ending at state 𝑖 at time 𝑡. The k parameter
+should be set to a power of two for efficiency.
 """
-function discrete_observation_times(Q, λ=2^10, t=0.0, args...)
+#function discrete_observation_times(Q, λ=2^10, t=0.0, args...)
+function discrete_observation_times(Q, k=2^10, t=0.0, args...)
+    η = getmaxrate(Q)
+    # Making sure λ is big enough, Yoon & Shanthikumar, p. 195
+    λ = k ≥ t * η ? k / t : t * η
     P = make_dtmc(Q, λ)
-    return P^floor(Int, λ * t)
+    return P^k
 end
 
 
 """
-    erlangization(Q, λ=2^10, t=0.0)
+    erlangization(Q, k=2^10, t=0.0)
 
 Approximate 𝐑(t) = exp(t𝐐) using P₃ of Yoon & Shanthikumar (1989, p. 179), originally from
 Ross (1987), where the Rᵢⱼ are the probability of starting at state 𝑗 and ending at state 𝑖
-at time 𝑡.
+at time 𝑡. The k parameter should be set to a power of two for efficiency.
 """
-function erlangization(Q, λ=2^10, t=0.0, args...)
+function erlangization(Q, k=2^10, t=0.0, args...)
+    λ = k / t
     P = inv(I(size(Q, 1)) - Q ./ λ)
-    return P^floor(Int, λ * t)
+    return P^k
 end
 
 # To do:
