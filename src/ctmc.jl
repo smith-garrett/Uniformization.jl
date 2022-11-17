@@ -111,6 +111,16 @@ function make_dtmc(Q, λ=2^10)
     return I + Q ./ λ
 end
 
+"""
+    make_dtmc!(Q, λ=2^10)
+
+Convert a transition rate matrix 𝐐 for a continuous-time Markov chain to a transition
+probability matrix 𝐏 for the corresponding discrete-time Markov chain, in place.
+"""
+function make_dtmc!(Q, λ=2^10)
+    Q ./= λ
+    Q += I
+end
 
 """
     stationary_distribution(Q)
@@ -175,14 +185,15 @@ less efficient than discrete_observation_times and erlangization.
 """
 function standard_uniformization(Q, k=2^10, t=0.0, ϵ=10e-9)
     λ = k / t
-    P = make_dtmc(Q, λ)
-    Ppower = deepcopy(P)
+    P = copy(Q)
+    P = make_dtmc!(P, λ)
+    Ppower = copy(P)
     sm = zeros(size(Q))
     δ = 0.0
     n = 0
     # Automatically determine the upper bound for the approximation
     while (1 - δ) ≥ ϵ
-        pr = pdf(Poisson(λ * t), n)
+        pr = t == zero(t) ? pdf(Poisson(0), n) : pdf(Poisson(λ * t), n)
         if n == 0
             sm .+= pr .* I(size(Q, 1))
         elseif n ==1
@@ -210,7 +221,8 @@ function discrete_observation_times(Q, k=2^10, t=0.0, args...)
     η = getmaxrate(Q)
     # Making sure λ is big enough, Yoon & Shanthikumar, p. 195
     λ = k ≥ t * η ? k / t : t * η
-    P = make_dtmc(Q, λ)
+    P = copy(Q)
+    P = make_dtmc!(P, λ)
     return P^k
 end
 
@@ -224,7 +236,7 @@ at time 𝑡. The k parameter should be set to a power of two for efficiency.
 """
 function erlangization(Q, k=2^10, t=0.0, args...)
     λ = k / t
-    P = inv(I(size(Q, 1)) - Q ./ λ)
+    P = inv(I - Q ./ λ)
     return P^k
 end
 
