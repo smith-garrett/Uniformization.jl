@@ -220,7 +220,7 @@ should be set to a power of two for efficiency.
 function discrete_observation_times(Q, k=2^10, t=0.0, args...)
     η = getmaxrate(Q)
     # Making sure λ is big enough, Yoon & Shanthikumar, p. 195
-    λ = k ≥ t * η ? k / t : t * η
+    λ = k ≥ t * η ? k / t : η
     P = copy(Q)
     P = make_dtmc!(P, λ)
     return P^k
