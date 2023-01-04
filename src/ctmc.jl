@@ -144,14 +144,14 @@ stationary_distribution(Q::TransientRateMatrix) = zeros(eltype(Q), size(Q, 1))
 
 """
     uniformize(Q::FullRateMatrix, p0, k=2^10, t=0.0,
-               method::Function=discrete_observation_times, args...)
+               method::Function=erlangization, args...)
 
 Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using uniformization. The parameter k controls the rate of
 transitions occurring in the approximated process. Higher k leads to a better approximation.
 Returns a (normalized) distribution over the states at time 𝑡.
 """
 function uniformize(Q::FullRateMatrix, p0, k=2^10, t=0.0,
-                    method::Function=discrete_observation_times, args...)
+                    method::Function=erlangization, args...)
     @assert t ≥ zero(t) "Time t must be positive."
     @assert size(p0, 1) == size(Q, 1) "Initial condition p0 must be the same size as Q."
     res = method(Q, k, t, args...) * p0
@@ -161,14 +161,14 @@ end
 
 """
     uniformize(Q::TransientRateMatrix, p0, k=2^10, t=0.0,
-               method::Function=discrete_observation_times, args...)
+               method::Function=erlangization, args...)
 
 Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using uniformization. The parameter k controls the rate of
 transitions occurring in the approximated process. Higher k leads to a better approximation.
 Returns a non-normalized distribution over the states at time 𝑡.
 """
 function uniformize(Q::TransientRateMatrix, p0, k=2^10, t=0.0,
-                    method::Function=discrete_observation_times, args...)
+                    method::Function=erlangization, args...)
     @assert t ≥ zero(t) "Time t must be positive."
     @assert size(p0, 1) == size(Q, 1) "Initial condition p0 must be the same size as Q."
     method(Q, k, t, args...) * p0
@@ -215,6 +215,8 @@ end
 Approximate 𝐑(t) = exp(t𝐐) using P₄ of Yoon & Shanthikumar (1989, p. 181), where the Rᵢⱼ are
 the probability of starting at state 𝑗 and ending at state 𝑖 at time 𝑡. The k parameter
 should be set to a power of two for efficiency.
+
+This method can give inaccurate results if k ≤ t * getmaxrate(Q)!
 """
 #function discrete_observation_times(Q, λ=2^10, t=0.0, args...)
 function discrete_observation_times(Q, k=2^10, t=0.0, args...)
