@@ -149,13 +149,20 @@ stationary_distribution(Q::TransientRateMatrix) = zeros(eltype(Q), size(Q, 1))
 Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using uniformization. The parameter k controls the rate of
 transitions occurring in the approximated process. Higher k leads to a better approximation.
 Returns a (normalized) distribution over the states at time 𝑡.
+
+Uses Erlangization/external uniformization by default because it seems to be the most robust
+with stiff problems.
 """
 function uniformize(Q::FullRateMatrix, p0, k=2^10, t=0.0,
                     method::Function=erlangization, args...)
     @assert t ≥ zero(t) "Time t must be positive."
     @assert size(p0, 1) == size(Q, 1) "Initial condition p0 must be the same size as Q."
-    res = method(Q, k, t, args...) * p0
-    res ./ sum(res)
+    if method == standard_uniformization
+        res = method(Q, k, t, args...; p0=p0)
+    else
+        res = method(Q, k, t, args...) * p0
+    end
+    return res ./ sum(res)
 end
 
 
@@ -176,35 +183,42 @@ end
 
 
 """
-    standard_uniformization(Q, k=2^10, t=0.0)
+    standard_uniformization(Q, k=2^10, t=0.0, ϵ=10e-9; p0)
 
-Approximate 𝐑(t) = exp(t𝐐) using standard uniformization, where the Rᵢⱼ are the probability
-of starting at state 𝑗 and ending at state 𝑖 at time 𝑡. The upper bound of the truncation is
-determined automatically on the fly. Matrix powers are calculated incrementally. Still much
-less efficient than discrete_observation_times and erlangization.
+Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using standard uniformization with left and right truncation
+of the Poisson distribution used to approximate the number of jumps up to time t. The rules
+for choosing the left and right truncation points are based on Reibman & Trivedi (1988,
+Computers & Operations Research).
+
+Note that this computes 𝐩(t) on the fly; it does not return the matrix 𝐑(t) as
+erlangization() and discrete_observation_() do.
 """
-function standard_uniformization(Q, k=2^10, t=0.0, ϵ=10e-9)
+function standard_uniformization(Q, k=2^10, t=0.0, ϵ=10e-9; p0)
     λ = k / t
     P = copy(Q)
     P = make_dtmc!(P, λ)
-    Ppower = copy(P)
-    sm = zeros(size(Q))
-    δ = 0.0
-    n = 0
-    # Automatically determine the upper bound for the approximation
-    while (1 - δ) ≥ ϵ
-        pr = t == zero(t) ? pdf(Poisson(0), n) : pdf(Poisson(λ * t), n)
-        if n == 0
-            sm .+= pr .* I(size(Q, 1))
-        elseif n ==1
-            sm .+= pr .* P
-        else
-            Ppower *= P
-            sm .+= pr .* Ppower
-        end
-        n += 1
-        δ += pr
+
+    # Finding the truncation points
+    distr = Poisson(λ * t)
+    l = quantile(distr, ϵ / 2)
+    if l > 0
+        r = quantile(distr, 1 - (ϵ / 2))
+    else
+        r = quantile(distr, 1 - ϵ)
     end
+
+    # Getting the current state after l jumps
+    curr = P^(l-1) * p0
+    # A vector to keep track of the running sum that approximates p(t)
+    sm = zeros(size(p0))
+
+    for i in l:r
+        # Get the Poisson weight for i jumps
+        pr = pdf(distr, i)
+        sm += curr
+        curr = pr * P * curr
+    end
+
     return sm
 end
 
@@ -218,7 +232,6 @@ should be set to a power of two for efficiency.
 
 This method can give inaccurate results if k ≤ t * getmaxrate(Q)!
 """
-#function discrete_observation_times(Q, λ=2^10, t=0.0, args...)
 function discrete_observation_times(Q, k=2^10, t=0.0, args...)
     η = getmaxrate(Q)
     # Making sure λ is big enough, Yoon & Shanthikumar, p. 195
@@ -241,9 +254,5 @@ function erlangization(Q, k=2^10, t=0.0, args...)
     P = inv(I - Q ./ λ)
     return P^k
 end
-
-# To do:
-# - Make iterative solver for whole trajectory, using the previous solution point as the
-# initial condition for the next.
 
 
