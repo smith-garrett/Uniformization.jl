@@ -84,7 +84,7 @@ function uniformize(Q::TransitionRateMatrix, p0, k=2^10, t=0.0,
     else
         res = method(Q, k, t, args...) * p0
     end
-    return res ./ sum(res)
+    return res #./ sum(res)
 end
 
 
@@ -105,12 +105,15 @@ function standard_uniformization(Q, k=2^10, t=0.0, ϵ=10e-9; p0)
     P = make_dtmc!(P, λ)
 
     # Finding the truncation points
-    distr = Poisson(λ * t)
-    l = quantile(distr, ϵ / 2)
-    if l > 0
-        r = quantile(distr, 1 - (ϵ / 2))
-    else
+    distr = t > zero(t) ? Poisson(λ * t) : Poisson(0)
+    
+    # Rule from Reibman 1988
+    if (λ * t) < 25
+        l = 0
         r = quantile(distr, 1 - ϵ)
+    else
+        l = quantile(distr, ϵ / 2)
+        r = quantile(distr, 1 - (ϵ / 2))
     end
 
     # Getting the current state after l jumps
