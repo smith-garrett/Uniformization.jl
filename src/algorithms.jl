@@ -1,5 +1,5 @@
 # Tools for solving continuous-time Markov chains (CTMCs) via uniformization
-# Borrows heavily from tpapp/ContinuousTimeMarkov
+
 
 include("utils.jl")
 
@@ -8,10 +8,10 @@ abstract type AbstractRateMatrix{E} <: AbstractMatrix{E} end
 
 
 # Full transition rate matrix; columns must sum to 0
-struct FullRateMatrix{E, T <: AbstractMatrix{E}} <: AbstractRateMatrix{E}
+struct TransitionRateMatrix{E, T <: AbstractMatrix{E}} <: AbstractRateMatrix{E}
     matrix::T
 
-    function FullRateMatrix(Q)
+    function TransitionRateMatrix(Q)
         if !issquare(Q)
             error("Matrix is not square.")
         end
@@ -65,7 +65,7 @@ end
 
 
 """
-    uniformize(Q::FullRateMatrix, p0, k=2^10, t=0.0,
+    uniformize(Q::TransitionRateMatrix, p0, k=2^10, t=0.0,
                method::Function=erlangization, args...)
 
 Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using uniformization. The parameter k controls the rate of
@@ -75,7 +75,7 @@ Returns a (normalized) distribution over the states at time 𝑡.
 Uses Erlangization/external uniformization by default because it seems to be the most robust
 with stiff problems.
 """
-function uniformize(Q::FullRateMatrix, p0, k=2^10, t=0.0,
+function uniformize(Q::TransitionRateMatrix, p0, k=2^10, t=0.0,
                     method::Function=erlangization, args...)
     @assert t ≥ zero(t) "Time t must be positive."
     @assert size(p0, 1) == size(Q, 1) "Initial condition p0 must be the same size as Q."
