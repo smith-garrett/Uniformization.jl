@@ -160,7 +160,8 @@ at time 𝑡. The k parameter should be set to a power of two for efficiency.
 """
 function erlangization(Q, k=2^10, t=0.0, args...)
     λ = k / t
-    P = inv(I - Q ./ λ)
+    #P = inv(I - Q ./ λ)
+    P = inv!(lu!(I - Q ./ λ))
     return P^k
 end
 

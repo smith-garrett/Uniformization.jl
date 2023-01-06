@@ -1,6 +1,6 @@
 module Uniformization
 
-using LinearAlgebra: I, eigen, diag, inv, nullspace
+using LinearAlgebra: I, eigen, diag, inv, nullspace, inv!, lu!
 using Distributions: Poisson, pdf, cdf, quantile
 
 include("algorithms.jl")
