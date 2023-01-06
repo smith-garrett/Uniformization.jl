@@ -1,49 +1,10 @@
 # Tools for solving continuous-time Markov chains (CTMCs) via uniformization
 # Borrows heavily from tpapp/ContinuousTimeMarkov
 
-
-function issquare(Q)
-    s1, s2 = size(Q)
-    s1 == s2
-end
-
-
-function getdiagonal(Q)
-    return sum(Q, dims=1)
-end
-
-
-function setdiagonal!(Q)
-    for i in 1:size(Q, 1)
-        @inbounds Q[i,i] = zero(eltype(Q))
-    end
-    d = getdiagonal(Q)
-    for i in eachindex(d)
-        @inbounds Q[i,i] = -d[i]
-    end
-    return Q
-end
-
-
-function off_diag_nonnegative(Q)
-    for idx in CartesianIndices(Q)
-        if idx[1] == idx[2]
-            continue
-        elseif Q[idx] < zero(eltype(Q))
-            return false
-        end
-    end
-    return true
-end
-
+include("utils.jl")
 
 # Define an abstract type for all transition rate matrices
 abstract type AbstractRateMatrix{E} <: AbstractMatrix{E} end
-
-
-function getmaxrate(Q)
-    maximum(abs, diag(Q))
-end
 
 
 # Full transition rate matrix; columns must sum to 0
@@ -64,38 +25,6 @@ struct FullRateMatrix{E, T <: AbstractMatrix{E}} <: AbstractRateMatrix{E}
 end
 
 
-function transient_diag_correct(Q)
-    QQ = deepcopy(Q)
-    for i in 1:size(QQ, 1)
-        @inbounds QQ[i,i] = zero(eltype(QQ))
-    end
-    all(abs.(diag(Q)) .>= vec(sum(QQ, dims=1)))
-end
-
-
-# Transient rate matrix
-struct TransientRateMatrix{E, T <: AbstractMatrix{E}} <: AbstractRateMatrix{E}
-    matrix::T
-
-    function TransientRateMatrix(Q)
-        if !issquare(Q)
-            error("Matrix is not square.")
-        end
-        if !off_diag_nonnegative(Q)
-            error("Matrix contains off-diagonal elements that aren't positive.")
-        end
-        if !all(diag(Q) .< zero(eltype(Q)))
-            error("Diagonal can only contain negative entries.")
-        end
-        if !transient_diag_correct(Q)
-            error("Diagonal elements must be greater than or equal to the column sums.")
-        end
-
-        new{eltype(Q), typeof(Q)}(Q)
-    end
-end
-
-
 Base.size(m::AbstractRateMatrix) = size(m.matrix)
 Base.getindex(m::AbstractRateMatrix, I...) = Base.getindex(m.matrix, I...)
 #Base.IndexStyle(::Type{AbstractRateMatrix{E}}) where {E,T} = IndexStyle(T)
@@ -111,6 +40,7 @@ function make_dtmc(Q, λ=2^10)
     return I + Q ./ λ
 end
 
+
 """
     make_dtmc!(Q, λ=2^10)
 
@@ -122,6 +52,7 @@ function make_dtmc!(Q, λ=2^10)
     Q += I
 end
 
+
 """
     stationary_distribution(Q)
 
@@ -131,15 +62,6 @@ function stationary_distribution(Q)
     soln = nullspace(Q.matrix)
     return soln ./ sum(soln)
 end
-
-
-"""
-    stationary_distribution(Q::TransientRateMatrix)
-
-Return the stationary distribution of Q, which is a vector of zeros for transient rate
-matrices.
-"""
-stationary_distribution(Q::TransientRateMatrix) = zeros(eltype(Q), size(Q, 1))
 
 
 """
@@ -163,22 +85,6 @@ function uniformize(Q::FullRateMatrix, p0, k=2^10, t=0.0,
         res = method(Q, k, t, args...) * p0
     end
     return res ./ sum(res)
-end
-
-
-"""
-    uniformize(Q::TransientRateMatrix, p0, k=2^10, t=0.0,
-               method::Function=erlangization, args...)
-
-Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using uniformization. The parameter k controls the rate of
-transitions occurring in the approximated process. Higher k leads to a better approximation.
-Returns a non-normalized distribution over the states at time 𝑡.
-"""
-function uniformize(Q::TransientRateMatrix, p0, k=2^10, t=0.0,
-                    method::Function=erlangization, args...)
-    @assert t ≥ zero(t) "Time t must be positive."
-    @assert size(p0, 1) == size(Q, 1) "Initial condition p0 must be the same size as Q."
-    method(Q, k, t, args...) * p0
 end
 
 
