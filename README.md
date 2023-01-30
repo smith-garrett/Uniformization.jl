@@ -4,6 +4,7 @@
 [![Dev](https://img.shields.io/badge/docs-dev-blue.svg)](https://smith-garrett.github.io/Uniformization.jl/dev/)
 [![Build Status](https://github.com/smith-garrett/Uniformization.jl/actions/workflows/CI.yml/badge.svg?branch=main)](https://github.com/smith-garrett/Uniformization.jl/actions/workflows/CI.yml?query=branch%3Amain)
 [![Coverage](https://codecov.io/gh/smith-garrett/Uniformization.jl/branch/main/graph/badge.svg)](https://codecov.io/gh/smith-garrett/Uniformization.jl)
+[![DOI](https://zenodo.org/badge/555271933.svg)](https://zenodo.org/badge/latestdoi/555271933)
 
 Uniformization.jl is a package for solving continuous-time Markov processes using
 uniformization, also known as randomization or Jensen's method. Solutions are approximated
