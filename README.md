@@ -36,7 +36,7 @@ k = 2^8
 uniformize(Q, p0, k, t)
 ```
 
-The parameter $k$ controls the accuracy of the approximation; the default is $2^10$.
+The parameter $k$ controls the accuracy of the approximation; the default is $2^{10}$.
 
 The `erlangization` method is the default, as it seems to be a good compromise between
 efficiency and robustness on stiff problems.
