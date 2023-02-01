@@ -24,7 +24,7 @@ over all states.
 
 ```julia
 using Uniformization.jl
-Q = FullRateMatrix([-1.0 1 0; 1 -2 1; 0 1 -1])
+Q = TransitionRateMatrix([-1.0 1 0; 1 -2 1; 0 1 -1])
 p0 = [1.0, 0, 0]
 ```
 
