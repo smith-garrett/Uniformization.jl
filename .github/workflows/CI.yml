@@ -9,7 +9,7 @@ concurrency:
   # Skip intermediate builds: always.
   # Cancel intermediate builds: only if it is a pull request build.
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ startsWith(github.ref, 'refs/pull/') }}
+  cancel-in-progress: true #${{ startsWith(github.ref, 'refs/pull/') }}
 jobs:
   test:
     name: Julia ${{ matrix.version }} - ${{ matrix.os }} - ${{ matrix.arch }} - ${{ github.event_name }}
@@ -59,3 +59,4 @@ jobs:
             DocMeta.setdocmeta!(Uniformization, :DocTestSetup, :(using Uniformization); recursive=true)
             doctest(Uniformization)'
       - run: julia --project=docs docs/make.jl
+
