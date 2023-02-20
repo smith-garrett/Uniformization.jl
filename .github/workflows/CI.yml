@@ -20,11 +20,9 @@ jobs:
         version:
           - '1'
           - '1.7'
-          - '1.8'
           - 'nightly'
         os:
           - ubuntu-latest
-          - macOS-latest
         arch:
           - x64
     steps:
@@ -60,3 +58,4 @@ jobs:
             using Uniformization
             DocMeta.setdocmeta!(Uniformization, :DocTestSetup, :(using Uniformization); recursive=true)
             doctest(Uniformization)'
+      - run: julia --project=docs docs/make.jl
