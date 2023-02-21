@@ -20,7 +20,9 @@ Engineering and Informational Sciences*) are implemented.
 Begin by creating a generator matrix $\mathbf{Q}$ for the problem. The $i,j$-th entry
 specifies the transition rate per unit time from state $j$ to state $i$. We also need to
 specify the initial conditions, $\mathbf{p}(0)$, which must be a probabilty distribution
-over all states.
+over all states. Using the `TransitionRateMatrix` type is optional; ensuring that other
+types of matrices have the correct properties can also be done using the
+`transitionratematrix` and `transitionratematrix!` functions.
 
 ```julia
 using Uniformization.jl
@@ -41,6 +43,9 @@ The parameter $k$ controls the accuracy of the approximation; the default is $2^
 
 The `erlangization` method is the default, as it seems to be a good compromise between
 efficiency and robustness on stiff problems.
+
+Automatic differentiation using `ForwardDiff.jl` and `ReverseDiff.jl` should work as
+expected.
 
 Further information is available in the docstrings.
 
