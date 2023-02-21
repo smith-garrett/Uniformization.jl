@@ -31,6 +31,30 @@ Base.getindex(m::AbstractRateMatrix, I...) = Base.getindex(m.matrix, I...)
 
 
 """
+    transitionratematrix(Q)
+
+Create a copy of the matrix Q that fulfills the requirements of a transition rate matrix.
+"""
+function transitionratematrix(Q)
+    @assert issquare(Q) "Matrix must be square."
+    @assert off_diag_nonnegative(Q) "Matrix contains off-diagonal elements that aren't positive."
+    return setdiagonal!(copy(Q))
+end
+
+
+"""
+    transitionratematrix!(Q)
+
+Convert the matrix Q to one that fulfills the requirements of a transition rate matrix.
+"""
+function transitionratematrix!(Q)
+    @assert issquare(Q) "Matrix must be square."
+    @assert off_diag_nonnegative(Q) "Matrix contains off-diagonal elements that aren't positive."
+    return setdiagonal!(Q)
+end
+
+
+"""
     make_dtmc(Q, λ=2^10)
 
 Convert a transition rate matrix 𝐐 for a continuous-time Markov chain to a transition
@@ -65,7 +89,7 @@ end
 
 
 """
-    uniformize(Q::TransitionRateMatrix, p0, k=2^10, t=0.0,
+    uniformize(Q, p0, k=2^10, t=0.0,
                method::Function=erlangization, args...)
 
 Approximate 𝐩(t) = exp(t𝐐)𝐩(0) using uniformization. The parameter k controls the rate of
@@ -75,7 +99,7 @@ Returns a (normalized) distribution over the states at time 𝑡.
 Uses Erlangization/external uniformization by default because it seems to be the most robust
 with stiff problems.
 """
-function uniformize(Q::TransitionRateMatrix, p0, k=2^10, t=0.0,
+function uniformize(Q, p0, k=2^10, t=0.0,
                     method::Function=erlangization, args...)
     @assert t ≥ zero(t) "Time t must be positive."
     @assert size(p0, 1) == size(Q, 1) "Initial condition p0 must be the same size as Q."
